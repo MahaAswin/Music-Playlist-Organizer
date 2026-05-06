@@ -55,10 +55,12 @@ router.post('/:id/songs', auth, async (req, res) => {
     
     if (!playlist) return res.status(404).json({ message: 'Playlist not found' });
     
-    if (!playlist.songs.includes(songId)) {
+    const songExists = playlist.songs.some(id => id.toString() === songId);
+    if (!songExists) {
       playlist.songs.push(songId);
       await playlist.save();
     }
+
     
     await playlist.populate('songs');
     res.json(playlist);

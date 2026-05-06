@@ -19,10 +19,20 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'audio/mpeg' || file.mimetype === 'audio/mp3') {
-      cb(null, true);
+    if (file.fieldname === 'song') {
+      if (file.mimetype === 'audio/mpeg' || file.mimetype === 'audio/mp3') {
+        cb(null, true);
+      } else {
+        cb(new Error('Only MP3 files are allowed'), false);
+      }
+    } else if (file.fieldname === 'image') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'), false);
+      }
     } else {
-      cb(new Error('Only MP3 files are allowed'), false);
+      cb(null, true);
     }
   }
 });
@@ -31,16 +41,6 @@ const upload = multer({
 router.get('/', auth, async (req, res) => {
   try {
     const songs = await Song.find({ userId: req.user._id }).sort({ uploadDate: -1 });
-    res.json(songs);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get songs by singer
-router.get('/singer/:singer', auth, async (req, res) => {
-  try {
-    const songs = await Song.find({ userId: req.user._id, singer: req.params.singer });
     res.json(songs);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -57,23 +57,43 @@ router.get('/favorites', auth, async (req, res) => {
   }
 });
 
+// Get songs by singer
+router.get('/singer/:singer', auth, async (req, res) => {
+  try {
+    const songs = await Song.find({ userId: req.user._id, singer: req.params.singer });
+    res.json(songs);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
 // Upload song
-router.post('/upload', auth, upload.single('song'), async (req, res) => {
+router.post('/upload', auth, upload.fields([{ name: 'song', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, singer } = req.body;
     
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    if (!req.files || !req.files['song']) {
+      return res.status(400).json({ message: 'Audio file is required' });
     }
 
-    const song = new Song({
+    const audioFile = req.files['song'][0];
+    const imageFile = req.files['image'] ? req.files['image'][0] : null;
+
+    const songData = {
       title,
       singer,
       userId: req.user._id,
-      filename: req.file.filename,
-      filePath: req.file.path
-    });
+      filename: audioFile.filename,
+      filePath: audioFile.path
+    };
 
+    if (imageFile) {
+      songData.imageFilename = imageFile.filename;
+      songData.imagePath = imageFile.path;
+    }
+
+    const song = new Song(songData);
     await song.save();
     res.status(201).json(song);
   } catch (error) {
@@ -101,9 +121,12 @@ router.delete('/:id', auth, async (req, res) => {
     const song = await Song.findOne({ _id: req.params.id, userId: req.user._id });
     if (!song) return res.status(404).json({ message: 'Song not found' });
     
-    // Delete file from filesystem
+    // Delete files from filesystem
     if (fs.existsSync(song.filePath)) {
       fs.unlinkSync(song.filePath);
+    }
+    if (song.imagePath && fs.existsSync(song.imagePath)) {
+      fs.unlinkSync(song.imagePath);
     }
     
     await Song.findByIdAndDelete(req.params.id);
@@ -133,6 +156,18 @@ router.get('/play/:filename', (req, res) => {
     res.sendFile(path.resolve(filePath));
   } else {
     res.status(404).json({ message: 'File not found' });
+  }
+});
+
+// Serve image files
+router.get('/image/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads', filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    res.status(404).json({ message: 'Image not found' });
   }
 });
 

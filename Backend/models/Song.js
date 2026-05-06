@@ -24,6 +24,14 @@ const songSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  imageFilename: {
+    type: String,
+    default: ''
+  },
+  imagePath: {
+    type: String,
+    default: ''
+  },
   isFavorite: {
     type: Boolean,
     default: false
