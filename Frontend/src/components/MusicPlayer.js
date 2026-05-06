@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaPlay, FaPause, FaHeart, FaArrowLeft } from 'react-icons/fa';
+import { FaPlay, FaPause, FaHeart, FaArrowLeft, FaMusic } from 'react-icons/fa';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 
 const MusicPlayer = () => {
   const { id } = useParams();
@@ -47,9 +48,11 @@ const MusicPlayer = () => {
   };
 
   const handleSeek = (e) => {
-    const seekTime = (e.target.value / 100) * duration;
-    audioRef.current.currentTime = seekTime;
-    setCurrentTime(seekTime);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const clickedValue = (x / rect.width) * duration;
+    audioRef.current.currentTime = clickedValue;
+    setCurrentTime(clickedValue);
   };
 
   const toggleFavorite = async () => {
@@ -65,66 +68,85 @@ const MusicPlayer = () => {
   };
 
   const formatTime = (time) => {
+    if (isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!song) return <div className="loading">Loading...</div>;
+  if (!song) return <div className="loading">Loading Immersive Player...</div>;
 
   return (
     <div className="player-container">
-      <div className="player-header">
-        <button className="back-btn" onClick={() => navigate('/')}>
-          <FaArrowLeft /> Back
+      <header className="player-header">
+        <button className="back-btn glass" onClick={() => navigate('/')}>
+          <FaArrowLeft /> Back to Library
         </button>
-      </div>
+      </header>
       
-      <div className="player-card">
-        <div className="song-artwork">
-          <div className="music-icon">🎵</div>
+      <motion.div 
+        className="player-wrapper"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="immersive-artwork" style={{ position: 'relative', overflow: 'hidden' }}>
+          {song.imageFilename ? (
+            <img 
+              src={`/api/songs/image/${song.imageFilename}`} 
+              alt={song.title} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <FaMusic />
+          )}
+          <div className="artwork-glow"></div>
         </div>
         
-        <div className="song-details">
-          <h1>{song.title}</h1>
-          <h2>by {song.singer}</h2>
-          <p>Added on {new Date(song.uploadDate).toLocaleDateString()}</p>
+        <div className="player-info">
+          <h1 className="poppins">{song.title}</h1>
+          <p>{song.singer}</p>
         </div>
 
-        <div className="player-controls">
-          <button className="control-btn play-pause" onClick={togglePlay}>
-            {isPlaying ? <FaPause /> : <FaPlay />}
-          </button>
-          
-          <button 
-            className={`control-btn favorite ${song.isFavorite ? 'active' : ''}`}
-            onClick={toggleFavorite}
-          >
-            <FaHeart />
-          </button>
-        </div>
+        <div className="controls-main">
+          <div className="progress-container">
+            <span className="time">{formatTime(currentTime)}</span>
+            <div className="progress-bar-wrap" onClick={handleSeek}>
+              <div 
+                className="progress-fill" 
+                style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+              >
+                <div className="progress-knob"></div>
+              </div>
+            </div>
+            <span className="time">{formatTime(duration)}</span>
+          </div>
 
-        <div className="progress-section">
-          <span className="time">{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            className="progress-bar"
-            min="0"
-            max="100"
-            value={duration ? (currentTime / duration) * 100 : 0}
-            onChange={handleSeek}
-          />
-          <span className="time">{formatTime(duration)}</span>
+          <div className="playback-btns">
+            <button 
+              className={`control-btn favorite glass ${song.isFavorite ? 'active' : ''}`}
+              onClick={toggleFavorite}
+              style={{ width: '50px', height: '50px' }}
+            >
+              <FaHeart />
+            </button>
+
+            <button className="play-pause-btn" onClick={togglePlay}>
+              {isPlaying ? <FaPause /> : <FaPlay />}
+            </button>
+
+            <div style={{ width: '50px' }}></div> {/* Spacer */}
+          </div>
         </div>
 
         <audio
           ref={audioRef}
-          src={`/api/songs/play/${song.filename}`}
+          src={`/api/songs/play/${encodeURIComponent(song.filename)}`}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={() => setIsPlaying(false)}
         />
-      </div>
+      </motion.div>
     </div>
   );
 };

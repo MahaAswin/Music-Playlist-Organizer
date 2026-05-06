@@ -8,11 +8,15 @@ import SongCard from './components/SongCard';
 import MusicPlayer from './components/MusicPlayer';
 import PlaylistView from './components/PlaylistView';
 
-const Dashboard = () => {
+import { FaHome, FaHeart, FaUser, FaPlus, FaSignOutAlt, FaMusic, FaSun, FaMoon } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const Dashboard = ({ theme, toggleTheme }) => {
   const [songs, setSongs] = useState([]);
   const [filteredSongs, setFilteredSongs] = useState([]);
   const [filter, setFilter] = useState('all');
   const [user, setUser] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,21 +46,20 @@ const Dashboard = () => {
 
   const filterSongs = () => {
     let filtered = [...songs];
-    
     if (filter === 'favorites') {
       filtered = songs.filter(song => song.isFavorite);
     }
-    
     setFilteredSongs(filtered);
   };
 
-  const handleUpload = async ({ title, singer, file }) => {
+  const handleUpload = async ({ title, singer, file, image }) => {
     try {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('title', title);
       formData.append('singer', singer);
       formData.append('song', file);
+      if (image) formData.append('image', image);
 
       await axios.post('/api/songs/upload', formData, {
         headers: { 
@@ -66,6 +69,7 @@ const Dashboard = () => {
       });
       
       fetchSongs();
+      setShowUploadModal(false);
       alert('Song uploaded successfully!');
     } catch (error) {
       console.error('Error uploading song:', error);
@@ -127,6 +131,7 @@ const Dashboard = () => {
             {singerSongs.map(song => (
               <SongCard
                 key={song._id}
+                theme={theme}
                 song={song}
                 onToggleFavorite={handleToggleFavorite}
                 onDelete={handleDelete}
@@ -139,71 +144,119 @@ const Dashboard = () => {
 
     return (
       <div className="songs-grid">
-        {filteredSongs.map(song => (
-          <SongCard
-            key={song._id}
-            song={song}
-            onToggleFavorite={handleToggleFavorite}
-            onDelete={handleDelete}
-          />
-        ))}
+        <AnimatePresence>
+          {filteredSongs.map((song, index) => (
+            <motion.div
+              key={song._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <SongCard
+                theme={theme}
+                song={song}
+                onToggleFavorite={handleToggleFavorite}
+                onDelete={handleDelete}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     );
   };
 
   return (
-    <div className="container">
-      <div className="header">
-        <h1>🎵 Musify</h1>
-        <p>Welcome back, {user?.username}!</p>
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
-      </div>
-
-      <UploadForm onUpload={handleUpload} />
-
-      <div className="filters">
-        <button 
-          className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All Songs ({songs.length})
-        </button>
-        
-        <button 
-          className={`filter-btn ${filter === 'favorites' ? 'active' : ''}`}
-          onClick={() => setFilter('favorites')}
-        >
-          Favorites ({songs.filter(s => s.isFavorite).length})
-        </button>
-        
-        <button 
-          className={`filter-btn ${filter === 'by-singer' ? 'active' : ''}`}
-          onClick={() => setFilter('by-singer')}
-        >
-          By Singer
-        </button>
-        
-        <button 
-          className="filter-btn playlist-nav-btn"
-          onClick={() => navigate('/playlists')}
-        >
-          My Playlists
-        </button>
-      </div>
-
-      {filteredSongs.length === 0 ? (
-        <div className="no-songs">
-          {filter === 'favorites' ? 'No favorite songs yet' : 'No songs uploaded yet'}
+    <div className="app-layout">
+      {/* Sidebar Navigation */}
+      <aside className="sidebar glass">
+        <div className="logo poppins">
+          <span>🎵 Musify</span>
         </div>
-      ) : (
-        renderSongs()
-      )}
+        
+        <nav className="nav-links">
+          <div 
+            className={`nav-item ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            <FaHome /> <span className="nav-text">Discover</span>
+          </div>
+          <div 
+            className={`nav-item ${filter === 'favorites' ? 'active' : ''}`}
+            onClick={() => setFilter('favorites')}
+          >
+            <FaHeart /> <span className="nav-text">Favorites</span>
+          </div>
+          <div 
+            className={`nav-item ${filter === 'by-singer' ? 'active' : ''}`}
+            onClick={() => setFilter('by-singer')}
+          >
+            <FaUser /> <span className="nav-text">Artists</span>
+          </div>
+          <div 
+            className="nav-item"
+            onClick={() => navigate('/playlists')}
+          >
+            <FaMusic /> <span className="nav-text">Playlists</span>
+          </div>
+        </nav>
+
+        <div className="nav-links" style={{ marginTop: 'auto' }}>
+          <div className="nav-item" onClick={() => setShowUploadModal(true)}>
+            <FaPlus /> <span className="nav-text">Upload Song</span>
+          </div>
+          <div className="nav-item" onClick={toggleTheme}>
+            {theme === 'dark' ? <FaSun /> : <FaMoon />} 
+            <span className="nav-text">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          </div>
+          <div className="nav-item" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
+            <FaSignOutAlt /> <span className="nav-text">Logout</span>
+          </div>
+
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="main-content">
+        <header className="section-header">
+          <div>
+            <h2 className="poppins">Welcome, {user?.username}</h2>
+            <p style={{ color: 'var(--text-dim)' }}>Explore your music collection</p>
+          </div>
+          <button className="primary-btn" style={{ width: 'auto', padding: '12px 25px' }} onClick={() => setShowUploadModal(true)}>
+            <FaPlus /> Add New Song
+          </button>
+        </header>
+
+        <section>
+          {filteredSongs.length === 0 ? (
+            <div className="no-songs glass" style={{ padding: '60px', borderRadius: '24px' }}>
+              <FaMusic style={{ fontSize: '3rem', marginBottom: '20px', opacity: 0.3 }} />
+              <p>{filter === 'favorites' ? 'No favorite songs yet' : 'Your library is empty'}</p>
+            </div>
+          ) : (
+            renderSongs()
+          )}
+        </section>
+
+        {/* Upload Modal */}
+        {showUploadModal && (
+          <div className="modal-overlay" onClick={() => setShowUploadModal(false)}>
+            <div className="modal-card glass" onClick={e => e.stopPropagation()}>
+              <button className="close-modal" onClick={() => setShowUploadModal(false)}>&times;</button>
+              <UploadForm onUpload={handleUpload} />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
 
+
 const App = () => {
   const [user, setUser] = useState(null);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -212,6 +265,16 @@ const App = () => {
       setUser(JSON.parse(userData));
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
 
   const handleLogin = async (formData) => {
     try {
@@ -245,7 +308,7 @@ const App = () => {
           user ? <Navigate to="/" /> : <Register onRegister={handleRegister} />
         } />
         <Route path="/" element={
-          user ? <Dashboard /> : <Navigate to="/login" />
+          user ? <Dashboard theme={theme} toggleTheme={toggleTheme} /> : <Navigate to="/login" />
         } />
         <Route path="/player/:id" element={
           user ? <MusicPlayer /> : <Navigate to="/login" />
